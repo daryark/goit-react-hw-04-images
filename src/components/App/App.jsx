@@ -1,5 +1,7 @@
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 import React from 'react';
+
+import { getImages as fetchImg } from 'service/image-service';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.min.css';
 
@@ -9,97 +11,80 @@ import {
   Loader,
   ModalWindow,
   ImageGallery,
-  getImages,
   messageSettings,
-} from 'components/reexport';
+} from 'components';
 import { ToastMessage } from 'components/ToastMessage/ToastMessage.styled';
 
-export class App extends Component {
-  state = {
-    value: '',
-    images: [],
-    page: 1,
-    total: 0,
-    // error: null,
-    isLoading: false,
-    modalData: null,
-  };
+export function App() {
+  const [value, setValue] = useState('');
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [modalData, setModalData] = useState(null);
 
-  componentDidUpdate(_, prevState) {
-    if (
-      prevState.value !== this.state.value ||
-      prevState.page !== this.state.page
-    ) {
-      this.getImages();
+  useEffect(() => {
+    if (!value) {
+      return;
     }
-  }
+    async function getImages() {
+      try {
+        setLoading(true);
 
-  getImages = async () => {
-    try {
-      const { value, page, images } = this.state;
-      this.setState({ isLoading: true });
-      const data = await getImages(value, page);
+        const data = await fetchImg(value, page);
+        const { hits, total } = data;
 
-      const { hits, total } = data;
-
-      if (page === 1 && !hits.length) {
-        toast('🤷‍♀️ Sorry, no images found by your request', messageSettings);
+        if (page === 1 && !hits.length) {
+          toast('🤷‍♀️ Sorry, no images found by your request', messageSettings);
+        }
+        setImages(prev => [...prev, ...hits]);
+        setTotal(total);
+      } catch (error) {
+        toast.error(`🙆‍♂️ Oops... ${error.message}`, messageSettings);
+      } finally {
+        setLoading(false);
       }
-      this.setState({
-        images: page === 1 ? hits : [...images, ...hits],
-        total,
-      });
-    } catch (error) {
-      this.setState({
-        error: error.message,
-      });
-      toast.error(`🙆‍♂️ Oops... ${error.message}`, messageSettings);
-    } finally {
-      this.setState({
-        isLoading: false,
-      });
     }
+    getImages();
+  }, [value, page]);
+
+  const getValue = inputValue => {
+    if (inputValue === value) {
+      toast(
+        `🤷‍♀️ Hey, you already have '${value}' shown, find something new!`,
+        messageSettings
+      );
+      return;
+    }
+    setValue(inputValue);
+    setPage(1);
+    setTotal(0);
+    setImages([]);
   };
 
-  getValue = value => {
-    this.setState({
-      value,
-      page: 1,
-    });
+  const handleChangePage = () => {
+    setPage(prev => prev + 1);
   };
 
-  handleChangePage = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
+  const toggleModal = (modalData = null) => {
+    setModalData(modalData);
   };
 
-  toggleModal = (modalData = null) => {
-    this.setState({ modalData });
-  };
+  const limit = total > page * 12;
+  return (
+    <>
+      <Form submit={getValue} />
+      <ImageGallery photos={images} openModal={toggleModal} />
+      {images.length > 0 && limit && (
+        <Btn text="Load more" btnClick={handleChangePage} disabled={!loading} />
+      )}
 
-  render() {
-    const { total, page, images, isLoading, modalData } = this.state;
-    const limit = total > page * 12;
-    return (
-      <>
-        <Form submit={this.getValue} />
-        <ImageGallery photos={images} openModal={this.toggleModal} />
-        {images.length > 0 && limit && (
-          <Btn
-            text="Load more"
-            btnClick={this.handleChangePage}
-            disabled={!isLoading}
-          />
-        )}
-
-        {/* {error !== null && <b>{error}</b>} */}
-        {isLoading && <Loader />}
-        {modalData !== null && (
-          <ModalWindow closeModal={this.toggleModal} modalData={modalData} />
-        )}
-        <ToastMessage />
-      </>
-    );
-  }
+      {/* {error !== null && <b>{error}</b>} */}
+      {loading && <Loader />}
+      {modalData !== null && (
+        <ModalWindow closeModal={toggleModal} modalData={modalData} />
+      )}
+      <ToastMessage />
+    </>
+  );
 }
