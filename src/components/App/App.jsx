@@ -70,7 +70,7 @@ export function App() {
     setModalData(modalData);
   };
 
-  const limit = total > page * 12;
+  const limit = total !== images.length;
   return (
     <>
       <Form submit={getValue} />
